@@ -23,8 +23,9 @@ export class TSVFileReader implements FileReader {
   }
 
   public toArray(): Offer[] {
-    if (!this.rawData)
+    if (!this.rawData){
       throw new Error('File was not read');
+    }
 
     return this.rawData
       .split('\n')
