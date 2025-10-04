@@ -7,9 +7,12 @@
     "api",
     "node.js"
   ],
-  "main": "main.js",
+  "main": "main.rest.js",
   "scripts": {
-    "start": "npm run build && node ./dist/main.js",
+    "start": "npm run build && node ./dist/src/main.rest.js",
+    "start:dev": "npm run build && node ./dist/src/main.rest.js | pino-pretty --colorize --translateTime SYS:standard",
+    "cli": "npm run build && node ./dist/main.cli.js",
+    "json-server": "json-server --watch src/mocks/mock-server-data.json --port 3000",
     "build": "npm run clean && npm run compile",
     "lint": "eslint src/ --ext .ts",
     "compile": "tsc -p tsconfig.json",
@@ -17,7 +20,9 @@
     "ts": "ts-node"
   },
   "devDependencies": {
-    "@types/node": "^18.16.3",
+    "@types/convict": "^6.1.6",
+    "@types/convict-format-with-validator": "^6.0.5",
+    "@types/node": "18.16.3",
     "@typescript-eslint/eslint-plugin": "5.46.0",
     "@typescript-eslint/parser": "5.46.0",
     "eslint": "8.39.0",
@@ -32,6 +37,14 @@
     "npm": ">=8"
   },
   "dependencies": {
-    "chalk": "^5.6.2"
+    "axios": "^1.12.2",
+    "chalk": "^5.6.2",
+    "convict": "^6.2.4",
+    "convict-format-with-validator": "^6.2.0",
+    "dotenv": "^17.2.3",
+    "inversify": "^7.10.2",
+    "json-server": "^1.0.0-beta.3",
+    "pino": "^9.13.0",
+    "reflect-metadata": "^0.2.2"
   }
 }
