@@ -1,6 +1,6 @@
 import { inject, injectable } from 'inversify';
-import { Logger } from '../../shared/libs/logger/index.js';
 import { Component } from '../../shared/types/index.js';
+import { Logger } from '../../shared/libs/logger/index.js';
 
 @injectable()
 export class RestApplication {
