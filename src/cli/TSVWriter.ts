@@ -16,6 +16,13 @@ export class TSVWriter {
     });
   }
 
+  public fileExist(filePath: string): boolean {
+    if (!fs.existsSync(filePath))
+      return false;
+    
+    return true;
+  }
+
   public addRentalOffer(offer: RentalOffer): void {
     const tsvLine = this.transformToTsvLine(offer);
     this.writeStream.write(`${tsvLine}\n`);
@@ -23,13 +30,6 @@ export class TSVWriter {
 
   public end(): void {
     this.writeStream.end();
-  }
-
-  public fileExist(filePath: string): boolean {
-    if (!fs.existsSync(filePath))
-      return false;
-    
-    return true;
   }
 
   private transformToTsvLine(offer: RentalOffer): string {

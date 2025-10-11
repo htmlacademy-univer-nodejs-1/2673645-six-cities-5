@@ -30,11 +30,14 @@ const importData = async (filePath: string): Promise<void> => {
 
   while (readNext) {
     const result = await reader.getRentalOffer();
+    
     if (!result) {
       readNext = false;
       continue;
     }
+
     const [rentalOffer, countRentalOffers] = result as [RentalOffer, number];
+    
     console.log(
       chalk.green(
         `Успешно импортированы : ${countRentalOffers} предложений аренды`
@@ -71,15 +74,18 @@ switch (command) {
   case '--help':
     showHelp();
     break;
+  
   case '--version':
     console.log(chalk.yellow(`Версия приложения: ${version}`));
     break;
+  
   case '--import':
     {
       const [filePath] = args;
       importData(filePath);
     }
     break;
+  
   case '--generate': {
     const [nArg, filePath, url] = args;
     const countRentalOffers: number = parseInt(nArg, 10);
