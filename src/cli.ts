@@ -36,7 +36,6 @@ const importData = async (filePath: string): Promise<void> => {
     }
 
     const [rentalOffer, countRentalOffers] = result as [RentalOffer, number];
-    
     console.log(
       chalk.green(
         `Успешно импортированы : ${countRentalOffers} предложений аренды`
