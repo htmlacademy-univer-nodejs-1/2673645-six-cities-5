@@ -1,13 +1,9 @@
 import * as fs from 'node:fs';
 import * as readline from 'node:readline';
-import { City } from '../models/city.enum.js';
-import { Convenience } from '../models/convenience.enum.js';
-import { HousingType } from '../models/housing-type.enum.js';
 import { RentalOffer } from '../models/rental-offer.js';
-
-function parseEnum<T>(enumObj: T, key: string): T[keyof T] {
-  return enumObj[key as keyof T];
-}
+import { City } from '../models/city.enum.js';
+import { HousingType } from '../models/housing-type.enum.js';
+import { Convenience } from '../models/convenience.enum.js';
 
 export class TSVReader {
   private readStream: fs.ReadStream;
@@ -55,7 +51,7 @@ export class TSVReader {
       roomsCount: parseInt(fields[10], 10),
       guestsCount: parseInt(fields[11], 10),
       rentalCost: parseInt(fields[12], 10),
-      convenienceList: fields[13] as unknown as Convenience[],
+      convenienceList: fields[13].split(';') as Convenience[],
       author: fields[14],
       commentsCount: parseInt(fields[15], 10),
       offerCoordinates: {
@@ -64,4 +60,8 @@ export class TSVReader {
       },
     };
   }
+}
+
+function parseEnum<T>(enumObj: T, key: string): T[keyof T] {
+  return enumObj[key as keyof T];
 }

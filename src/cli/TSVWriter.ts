@@ -8,12 +8,20 @@ export class TSVWriter {
   constructor(filePath: string) {
     this.filePath = filePath;
 
-    if (this.fileExist(this.filePath))
+    if (this.fileExist(this.filePath)) {
       fs.writeFileSync(filePath, '');
+    }
 
     this.writeStream = fs.createWriteStream(this.filePath, {
       encoding: 'utf-8',
     });
+  }
+
+  public fileExist(filePath: string): boolean {
+    if (!fs.existsSync(filePath)) {
+      return false;
+    }
+    return true;
   }
 
   public addRentalOffer(offer: RentalOffer): void {
@@ -23,13 +31,6 @@ export class TSVWriter {
 
   public end(): void {
     this.writeStream.end();
-  }
-
-  public fileExist(filePath: string): boolean {
-    if (!fs.existsSync(filePath))
-      return false;
-    
-    return true;
   }
 
   private transformToTsvLine(offer: RentalOffer): string {
