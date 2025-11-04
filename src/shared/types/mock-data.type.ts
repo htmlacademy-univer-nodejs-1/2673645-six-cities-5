@@ -1,5 +1,5 @@
 import type { UserType } from './user.type.js';
-import type { HousingType, Amenity } from './offer.type.js';
+import type { HousingType } from './offer.type.js';
 import type { CityName } from './city.type.js'
 
 export interface MockOffer {
@@ -16,7 +16,7 @@ export interface MockOffer {
   bedrooms: string;
   maxAdults: string;
   price: string;
-  amenities: Amenity[];
+  amenities: string;
   userName: string;
   userEmail: string;
   userType: UserType;
