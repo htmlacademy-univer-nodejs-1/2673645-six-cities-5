@@ -13,7 +13,6 @@ async function bootstrap() {
   container.bind<Config<RestSchema>>(Component.Config).to(RestConfig).inSingletonScope();
 
   const application = container.get<RestApplication>(Component.RestApplication);
-  
   await application.init();
 }
 

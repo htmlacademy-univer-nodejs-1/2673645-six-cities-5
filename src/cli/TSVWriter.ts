@@ -8,8 +8,9 @@ export class TSVWriter {
   constructor(filePath: string) {
     this.filePath = filePath;
 
-    if (this.fileExist(this.filePath))
+    if (this.fileExist(this.filePath)) {
       fs.writeFileSync(filePath, '');
+    }
 
     this.writeStream = fs.createWriteStream(this.filePath, {
       encoding: 'utf-8',
@@ -17,9 +18,9 @@ export class TSVWriter {
   }
 
   public fileExist(filePath: string): boolean {
-    if (!fs.existsSync(filePath))
+    if (!fs.existsSync(filePath)) {
       return false;
-    
+    }
     return true;
   }
 
