@@ -1,10 +1,24 @@
 import chalk from 'chalk';
 import { createReadStream } from 'node:fs';
 import { createInterface } from 'node:readline';
+import { injectable, inject } from 'inversify';
+import { Logger } from 'pino';
 import type { Command } from './command.interface.js';
+import { DatabaseConnection, DatabaseConnectionOptions } from '../../shared/db/database-connection.js';
+import { OfferRepository } from '../../shared/db/repositories/offer.repository.js';
+import { UserRepository } from '../../shared/db/repositories/user.repository.js';
 import type { MockOffer } from '../../shared/types/mock-data.type.js';
+import { TYPES } from '../../shared/ioc/ioc-container.js';
 
+@injectable()
 export class ImportCommand implements Command {
+  constructor(
+    @inject(TYPES.Logger) private logger: Logger,
+    @inject(TYPES.DatabaseConnection) private db: DatabaseConnection,
+    @inject(TYPES.OfferRepository) private offerRepository: OfferRepository,
+    @inject(TYPES.UserRepository) private userRepository: UserRepository
+  ) {}
+
   public getName(): string {
     return '--import';
   }
@@ -12,120 +26,128 @@ export class ImportCommand implements Command {
   private parseOfferLine(line: string, headers: string[]): MockOffer {
     const values = line.split('\t');
     const offer: Record<string, string> = {};
-
     headers.forEach((header, index) => {
       offer[header] = values[index] || '';
     });
-
     return offer as unknown as MockOffer;
   }
 
-  public async execute(...parameters: string[]): Promise<void> {
-    const [filepath] = parameters;
+  private parseDbOptions(args: string[]): DatabaseConnectionOptions {
+    const [_, host, port, name] = args;
+    
+    return {
+      host: host || '127.0.0.1',
+      port: parseInt(port, 10) || 27017,
+      name: name || 'six-cities'
+    };
+  }
 
-    if (!filepath) {
-      console.error(chalk.red('\n✗ Ошибка: необходимо указать путь к TSV-файлу'));
-      console.log(chalk.yellow('Пример: --import ./mocks/mock-data.tsv\n'));
+  public async execute(...parameters: string[]): Promise<void> {
+    if (parameters.length === 0) {
+      console.error(chalk.red('Ошибка: укажите путь к файлу и параметры БД'));
+      console.log(chalk.yellow('Пример: --import ./mocks/data.tsv 127.0.0.1 27017 six-cities\n'));
       return;
     }
 
-    console.log(chalk.cyan(`\n📥 Импорт данных из файла: ${filepath}\n`));
+    const filepath = parameters[0];
+    const dbOptions = this.parseDbOptions(parameters);
 
-    let processedOffers = 0;
-    let headers: string[] = [];
-    let isFirstLine = true;
-    const offers: MockOffer[] = [];
+    console.log(chalk.cyan(`Импорт данных из файла: ${filepath}\n`));
 
     try {
-      const fileStream = createReadStream(filepath, { encoding: 'utf-8' });
-      
-      const rl = createInterface({
-        input: fileStream,
-        crlfDelay: Infinity
-      });
+      await this.db.connect(dbOptions);
 
-      console.log(chalk.gray('Обработка данных...'));
+      let processedOffers = 0;
+      let headers: string[] = [];
+      let isFirstLine = true;
+      const offers: MockOffer[] = [];
+
+      const fileStream = createReadStream(filepath, { encoding: 'utf-8' });
+      const rl = createInterface({ input: fileStream, crlfDelay: Infinity });
+
+      console.log(chalk.gray('Чтение файла...\n'));
 
       for await (const line of rl) {
-        try {
-          if (isFirstLine) {
-            headers = line.split('\t');
-            isFirstLine = false;
-            console.log(chalk.gray(`Заголовки: ${headers.slice(0, 5).join(', ')}...\n`));
-            continue;
-          }
-
-          processedOffers++;
-          
-          if (processedOffers % 100 === 0 || processedOffers <= 5) {
-            console.log(chalk.gray(`  ⏳ Обработано: ${processedOffers} предложений...`));
-          }
-
-          const offer = this.parseOfferLine(line, headers);
-          offers.push(offer);
-        } catch (lineError) {
-          const errorMessage = lineError instanceof Error ? lineError.message : String(lineError);
-          console.warn(chalk.yellow(`  ⚠️  Ошибка в строке ${processedOffers + 2}: ${errorMessage}`));
+        if (isFirstLine) {
+          headers = line.split('\t');
+          isFirstLine = false;
           continue;
+        }
+
+        processedOffers++;
+        if (processedOffers % 100 === 0 || processedOffers <= 5) {
+          console.log(chalk.gray(`Обработано: ${processedOffers} предложений...`));
+        }
+
+        const offer = this.parseOfferLine(line, headers);
+        offers.push(offer);
+      }
+
+      console.log(chalk.gray('Сохранение пользователей в БД...'));
+      const users = new Map();
+      
+      for (const offer of offers) {
+        if (!users.has(offer.userEmail)) {
+          try {
+            const user = await this.userRepository.create({
+              name: offer.userName,
+              email: offer.userEmail,
+              password: 'defaultpassword',
+              type: offer.userType
+            });
+            users.set(offer.userEmail, user._id);
+          } catch (error) {
+            const msg = error instanceof Error ? error.message : String(error);
+            if (!msg.includes('duplicate')) {
+              this.logger.error(`Error creating user: ${msg}`);
+            } else {
+              const existingUser = await this.userRepository.findByEmail(offer.userEmail);
+              if (existingUser) {
+                users.set(offer.userEmail, existingUser._id);
+              }
+            }
+          }
         }
       }
 
-      console.log(chalk.green.bold(`\n✓ Успешно импортировано: ${offers.length} предложений\n`));
-
-      const displayCount = Math.min(5, offers.length);
-      offers.slice(0, displayCount).forEach((offer, index) => {
-        console.log(chalk.blue(`Предложение #${index + 1}:`));
-        console.log(chalk.white(`  📍 Название: ${offer.title}`));
-        console.log(chalk.white(`  🏙️  Город: ${offer.city}`));
-        console.log(chalk.white(`  🏠 Тип: ${offer.type}`));
-        console.log(chalk.white(`  💰 Цена: €${offer.price}`));
-        console.log(chalk.white(`  ⭐ Рейтинг: ${offer.rating}/5`));
-        console.log(chalk.white(`  👑 Премиум: ${offer.isPremium === 'true' ? '✓ Да' : '✗ Нет'}`));
-        console.log(chalk.gray(`  👤 Автор: ${offer.userName} (${offer.userEmail})`));
-        console.log('');
-      });
-
-      if (offers.length > displayCount) {
-        console.log(chalk.gray(`... и еще ${offers.length - displayCount} предложений\n`));
-      }
-
-      this.printStatistics(offers);
+      console.log(chalk.gray('Сохранение предложений в БД...'));
       
-      console.log(chalk.green.bold('\n✓ Импорт завершен успешно\n'));
+      const offersToSave = offers.map(offer => ({
+        title: offer.title,
+        description: offer.description,
+        publishDate: new Date(offer.publishDate),
+        city: offer.city,
+        previewImage: offer.previewImage,
+        images: offer.images.split(';').filter(img => img),
+        isPremium: offer.isPremium === 'true',
+        isFavorite: offer.isFavorite === 'true',
+        rating: parseFloat(offer.rating),
+        type: offer.type,
+        bedrooms: parseInt(offer.bedrooms, 10),
+        maxAdults: parseInt(offer.maxAdults, 10),
+        price: parseInt(offer.price, 10),
+        amenities: offer.amenities.split(';').filter(a => a),
+        author: users.get(offer.userEmail),
+        coordinates: {
+          latitude: parseFloat(offer.latitude),
+          longitude: parseFloat(offer.longitude)
+        }
+      }));
+
+      await this.offerRepository.insertMany(offersToSave);
+
+      console.log(chalk.green.bold(`Успешно импортировано: ${offers.length} предложений\n`));
+      console.log(chalk.cyan('Статистика:'));
+      console.log(chalk.white(`Всего предложений: ${offers.length}`));
+      console.log(chalk.white(`Уникальных пользователей: ${users.size}`));
+      console.log(chalk.green.bold('Импорт завершен успешно\n'));
 
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error(chalk.red(`\n✗ Ошибка при импорте: ${errorMessage}\n`));
+      const msg = error instanceof Error ? error.message : String(error);
+      console.error(chalk.red(`Ошибка при импорте: ${msg}\n`));
       process.exit(1);
+    } finally {
+      await this.db.disconnect();
     }
-  }
-
-  private printStatistics(offers: MockOffer[]): void {
-    if (offers.length === 0) return;
-
-    console.log(chalk.cyan('📊 Статистика импорта:'));
-    console.log(chalk.white(`  Всего предложений: ${offers.length}`));
-
-    const totalPrice = offers.reduce((sum, o) => sum + parseInt(o.price, 10), 0);
-    const avgPrice = (totalPrice / offers.length).toFixed(2);
-    console.log(chalk.white(`  Средняя цена: €${avgPrice}`));
-
-    const totalRating = offers.reduce((sum, o) => sum + parseFloat(o.rating), 0);
-    const avgRating = (totalRating / offers.length).toFixed(1);
-    console.log(chalk.white(`  Средний рейтинг: ${avgRating}/5`));
-
-    const premiumCount = offers.filter(o => o.isPremium === 'true').length;
-    const premiumPercent = ((premiumCount / offers.length) * 100).toFixed(1);
-    console.log(chalk.white(`  Премиум предложений: ${premiumCount} (${premiumPercent}%)`));
-
-    const cityStats = new Map<string, number>();
-    offers.forEach(o => {
-      cityStats.set(o.city, (cityStats.get(o.city) || 0) + 1);
-    });
-    
-    console.log(chalk.white('  По городам:'));
-    cityStats.forEach((count, city) => {
-      console.log(chalk.gray(`    ${city}: ${count}`));
-    });
   }
 }
