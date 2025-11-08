@@ -1,13 +1,25 @@
-// src/shared/db/repositories/offer.repository.ts
-
 import { Logger } from 'pino';
 import { BaseRepository } from './base.repository.js';
 import { IOffer, OfferModel } from '../models/offer.schema.js';
-import mongoose from 'mongoose';
 
 export class OfferRepository extends BaseRepository<IOffer> {
   constructor(logger: Logger) {
     super(OfferModel, logger);
+  }
+
+  async findAll(limit = 60): Promise<IOffer[]> {
+    try {
+      return await this.model
+        .find()
+        .limit(limit)
+        .sort({ publishDate: -1 })
+        .populate('author', 'name email type avatarPath')
+        .exec();
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Error finding all offers: ${msg}`);
+      throw error;
+    }
   }
 
   async findByCity(city: string, limit = 60): Promise<IOffer[]> {
@@ -16,6 +28,7 @@ export class OfferRepository extends BaseRepository<IOffer> {
         .find({ city })
         .limit(limit)
         .sort({ publishDate: -1 })
+        .populate('author', 'name email type avatarPath')
         .exec();
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
@@ -30,6 +43,7 @@ export class OfferRepository extends BaseRepository<IOffer> {
         .find({ city, isPremium: true })
         .limit(limit)
         .sort({ publishDate: -1 })
+        .populate('author', 'name email type avatarPath')
         .exec();
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
@@ -43,10 +57,24 @@ export class OfferRepository extends BaseRepository<IOffer> {
       return await this.model
         .find({ favorites: userId })
         .sort({ publishDate: -1 })
+        .populate('author', 'name email type avatarPath')
         .exec();
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       this.logger.error(`Error finding favorites: ${msg}`);
+      throw error;
+    }
+  }
+
+  async findByIdWithAuthor(offerId: string): Promise<IOffer | null> {
+    try {
+      return await this.model
+        .findById(offerId)
+        .populate('author', 'name email type avatarPath')
+        .exec();
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Error finding offer with author: ${msg}`);
       throw error;
     }
   }
@@ -118,34 +146,6 @@ export class OfferRepository extends BaseRepository<IOffer> {
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       this.logger.error(`Error removing from favorites: ${msg}`);
-      throw error;
-    }
-  }
-
-  async findAll(limit = 60): Promise<IOffer[]> {
-    try {
-      return await this.model
-        .find()
-        .limit(limit)
-        .sort({ publishDate: -1 })
-        .populate('author', 'name email type avatarPath')
-        .exec();
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
-      this.logger.error(`Error finding all offers: ${msg}`);
-      throw error;
-    }
-  }
-
-  async findByIdWithAuthor(offerId: string): Promise<IOffer | null> {
-    try {
-      return await this.model
-        .findById(offerId)
-        .populate('author', 'name email type avatarPath')
-        .exec();
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
-      this.logger.error(`Error finding offer with author: ${msg}`);
       throw error;
     }
   }

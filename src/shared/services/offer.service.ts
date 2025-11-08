@@ -14,6 +14,16 @@ export class OfferService {
     @inject(TYPES.OfferRepository) private offerRepository: OfferRepository
   ) {}
 
+  async findAll(limit = 60): Promise<IOffer[]> {
+    try {
+      return await this.offerRepository.findAll(limit);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Error finding all offers: ${msg}`);
+      throw error;
+    }
+  }
+
   async create(dto: CreateOfferDto): Promise<IOffer> {
     try {
       if (!mongoose.Types.ObjectId.isValid(dto.authorId)) {
