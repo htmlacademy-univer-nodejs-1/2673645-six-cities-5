@@ -1,34 +1,85 @@
 import 'reflect-metadata';
 import { injectable, inject } from 'inversify';
 import { Logger } from 'pino';
+import express, { Express } from 'express';
+import { Server } from 'http';
 import { TYPES } from '../shared/ioc/ioc-container.js';
+import { DatabaseConnection } from '../shared/db/database-connection.js';
+import { IController } from '../shared/interfaces/controller.interface.js';
+import { ExceptionFilter } from '../shared/middlewares/exception-filter.middleware.js';
 
 @injectable()
 export class Application {
+  private app: Express;
+  private server: Server | null = null;
+
   constructor(
     @inject(TYPES.Logger) private logger: Logger,
-    @inject(TYPES.Config) private config: any
-  ) {}
+    @inject(TYPES.Config) private config: any,
+    @inject(TYPES.DatabaseConnection) private db: DatabaseConnection
+  ) {
+    this.app = express();
+  }
 
-  async init(): Promise<void> {
-    this.logger.info('Application initialized');
-    const port = this.config.get('port');
-    const env = this.config.get('env');
-    const dbHost = this.config.get('db.host');
-    const dbPort = this.config.get('db.port');
-    const dbName = this.config.get('db.name');
-    this.logger.info(`Server port: ${port}`);
-    this.logger.info(`Environment: ${env}`);
-    this.logger.info(`Database: ${dbHost}:${dbPort} (${dbName})`);
+  private initMiddleware(): void {
+    this.app.use(express.json());
+    this.app.use((req, res, next) => {
+      res.header('Access-Control-Allow-Origin', '*');
+      res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH');
+      res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      next();
+    });
+
+    this.logger.info('✓ Middleware initialized');
+  }
+
+  private initControllers(controllers: IController[]): void {
+    controllers.forEach((controller) => {
+      this.app.use('/api', controller.router);
+      this.logger.info(`✓ Controller registered: ${controller.constructor.name}`);
+    });
+  }
+
+  private initExceptionFilters(): void {
+    const exceptionFilter = new ExceptionFilter(this.logger);
+    this.app.use(exceptionFilter.catch.bind(exceptionFilter));
+    this.logger.info('✓ Exception filter registered');
+  }
+
+  async init(controllers: IController[]): Promise<void> {
+    this.logger.info('Application initialization...');
+
+    await this.db.connect({
+      host: this.config.get('db.host'),
+      port: this.config.get('db.port'),
+      name: this.config.get('db.name'),
+      user: this.config.get('db.user'),
+      password: this.config.get('db.password')
+    });
+
+    this.initMiddleware();
+
+    this.initControllers(controllers);
+
+    this.initExceptionFilters();
+
+    this.logger.info('✓ Application initialized');
   }
 
   async start(): Promise<void> {
-    await this.init();
     const port = this.config.get('port');
-    this.logger.info(`Starting server on port ${port}...`);
+
+    this.server = this.app.listen(port, () => {
+      this.logger.info(`🚀 Server started on http://localhost:${port}`);
+      this.logger.info(`📚 API documentation: http://localhost:${port}/api-docs`);
+    });
   }
 
   async stop(): Promise<void> {
-    this.logger.info('Application stopped');
+    if (this.server) {
+      this.server.close();
+      await this.db.disconnect();
+      this.logger.info('✓ Application stopped');
+    }
   }
 }
