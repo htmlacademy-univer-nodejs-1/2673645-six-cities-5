@@ -1,8 +1,8 @@
 import { Logger } from 'pino';
-import { 
-  Document, 
-  FilterQuery, 
-  Model 
+import {
+  Document,
+  FilterQuery,
+  Model
 } from 'mongoose';
 
 export interface IRepository<T extends Document> {

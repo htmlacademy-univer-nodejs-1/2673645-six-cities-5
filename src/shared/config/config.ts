@@ -1,5 +1,11 @@
+// src/shared/config/config.ts
+
 import convict from 'convict';
 import 'convict-format-with-validator';
+import dotenv from 'dotenv';
+
+// Загружаем переменные окружения из .env файла
+dotenv.config();
 
 const schema = convict({
   env: {
@@ -32,6 +38,18 @@ const schema = convict({
       format: String,
       default: 'six-cities',
       env: 'DB_NAME'
+    },
+    user: {
+      doc: 'Database user',
+      format: String,
+      default: '',
+      env: 'DB_USER'
+    },
+    password: {
+      doc: 'Database password',
+      format: String,
+      default: '',
+      env: 'DB_PASSWORD'
     }
   },
   salt: {
@@ -41,20 +59,28 @@ const schema = convict({
     env: 'SALT',
     sensitive: true
   },
+  uploadDir: {
+    doc: 'Directory for uploaded files',
+    format: String,
+    default: './uploads',
+    env: 'UPLOAD_DIR'
+  },
   jwtSecret: {
     doc: 'JWT secret key',
     format: String,
     default: '',
     env: 'JWT_SECRET',
     sensitive: true
+  },
+  logLevel: {
+    doc: 'Log level',
+    format: ['error', 'warn', 'info', 'debug', 'trace'],
+    default: 'info',
+    env: 'LOG_LEVEL'
   }
 });
 
 export function loadConfig(): convict.Config<any> {
-  try {
-    require('dotenv').config();
-  } catch (error) { /* empty */ }
-
   schema.validate({ allowed: 'strict' });
   return schema;
 }

@@ -6,15 +6,15 @@ export function createLogger(): Logger {
     level: process.env.LOG_LEVEL || 'info',
     transport: isDevelopment
       ? {
-          target: 'pino-pretty',
-          options: {
-            colorize: true,
-            levelFirst: true,
-            singleLine: false,
-            translateTime: 'SYS:standard',
-            ignore: 'pid,hostname',
-          }
+        target: 'pino-pretty',
+        options: {
+          colorize: true,
+          levelFirst: true,
+          singleLine: false,
+          translateTime: 'SYS:standard',
+          ignore: 'pid,hostname',
         }
+      }
       : undefined
   });
 

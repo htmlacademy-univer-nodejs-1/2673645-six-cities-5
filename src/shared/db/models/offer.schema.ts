@@ -27,8 +27,8 @@ const offerSchema = new Schema<IOffer>(
     title: { type: String, required: true, minlength: 10 },
     description: { type: String, required: true, minlength: 20 },
     publishDate: { type: Date, default: Date.now },
-    city: { 
-      type: String, 
+    city: {
+      type: String,
       required: true,
       enum: ['Paris', 'Cologne', 'Brussels', 'Amsterdam', 'Hamburg', 'Dusseldorf']
     },

@@ -34,7 +34,6 @@ export class ImportCommand implements Command {
 
   private parseDbOptions(args: string[]): DatabaseConnectionOptions {
     const [_, host, port, name] = args;
-    
     return {
       host: host || '127.0.0.1',
       port: parseInt(port, 10) || 27017,
@@ -85,7 +84,6 @@ export class ImportCommand implements Command {
 
       console.log(chalk.gray('Сохранение пользователей в БД...'));
       const users = new Map();
-      
       for (const offer of offers) {
         if (!users.has(offer.userEmail)) {
           try {
@@ -111,14 +109,13 @@ export class ImportCommand implements Command {
       }
 
       console.log(chalk.gray('Сохранение предложений в БД...'));
-      
-      const offersToSave = offers.map(offer => ({
+      const offersToSave = offers.map((offer) => ({
         title: offer.title,
         description: offer.description,
         publishDate: new Date(offer.publishDate),
         city: offer.city,
         previewImage: offer.previewImage,
-        images: offer.images.split(';').filter(img => img),
+        images: offer.images.split(';').filter((img) => img),
         isPremium: offer.isPremium === 'true',
         isFavorite: offer.isFavorite === 'true',
         rating: parseFloat(offer.rating),
@@ -126,7 +123,7 @@ export class ImportCommand implements Command {
         bedrooms: parseInt(offer.bedrooms, 10),
         maxAdults: parseInt(offer.maxAdults, 10),
         price: parseInt(offer.price, 10),
-        amenities: offer.amenities.split(';').filter(a => a),
+        amenities: offer.amenities.split(';').filter((a) => a),
         author: users.get(offer.userEmail),
         coordinates: {
           latitude: parseFloat(offer.latitude),
