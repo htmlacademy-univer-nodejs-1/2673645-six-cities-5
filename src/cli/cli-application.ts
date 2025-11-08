@@ -36,7 +36,6 @@ export class CLIApplication {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error(chalk.red(`Error: ${errorMessage}`));
-      process.exit(1);
     }
   }
 }

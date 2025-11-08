@@ -14,19 +14,17 @@ export class TSVFileWriter {
     const readStream = Readable.from(offers);
 
     let isHeaderWritten = false;
-    
     const tsvTransformStream = new Transform({
       objectMode: true,
       transform: (offer: MockOffer, encoding: string, callback) => {
         try {
           if (!isHeaderWritten) {
-            const headerLine = headers.join('\t') + '\n';
-            callback(null, headerLine);
+            const headerLine = `${headers.join('\t') }\n`;
             isHeaderWritten = true;
             return;
           }
 
-          const values = headers.map(header => {
+          const values = headers.map((header) => {
             const value = (offer as any)[header] || '';
             return String(value)
               .replace(/\n/g, ' ')
@@ -34,16 +32,14 @@ export class TSVFileWriter {
               .trim();
           });
 
-          const line = values.join('\t') + '\n';
-          callback(null, line);
+          const line = `${values.join('\t') }\n`;
         } catch (error) {
           const err = error instanceof Error ? error : new Error(String(error));
-          callback(err);
         }
       }
     });
 
-    const writeStream = createWriteStream(filepath, { 
+    const writeStream = createWriteStream(filepath, {
       encoding: 'utf-8',
       highWaterMark: 64 * 1024
     });

@@ -2,7 +2,6 @@ import pino, { Logger } from 'pino';
 
 export function createLogger(): Logger {
   const isDevelopment = process.env.NODE_ENV !== 'production';
-  
   const logger = pino({
     level: process.env.LOG_LEVEL || 'info',
     transport: isDevelopment

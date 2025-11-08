@@ -1,6 +1,6 @@
 import type { UserType } from './user.type.js';
 import type { HousingType } from './offer.type.js';
-import type { CityName } from './city.type.js'
+import type { CityName } from './city.type.js';
 
 export interface MockOffer {
   title: string;

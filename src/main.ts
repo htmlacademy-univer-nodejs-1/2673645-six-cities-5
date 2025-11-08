@@ -5,13 +5,10 @@ import { Application } from './app/application.js';
 async function bootstrap() {
   try {
     const container = createContainer();
-    
     const app = container.get<Application>(TYPES.Application);
-    
     await app.start();
   } catch (error) {
     console.error('Failed to start application:', error);
-    process.exit(1);
   }
 }
 

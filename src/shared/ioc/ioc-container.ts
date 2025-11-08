@@ -23,16 +23,12 @@ export function createContainer(): Container {
   const logger = createLogger();
   container.bind<Logger>(TYPES.Logger).toConstantValue(logger);
   container.bind(TYPES.Config).toConstantValue(config);
-
   container.bind<DatabaseConnection>(TYPES.DatabaseConnection)
     .to(DatabaseConnection).inSingletonScope();
-  
   container.bind<UserRepository>(TYPES.UserRepository)
     .to(UserRepository).inSingletonScope();
-  
   container.bind<OfferRepository>(TYPES.OfferRepository)
     .to(OfferRepository).inSingletonScope();
-
   container.bind<Application>(TYPES.Application).to(Application).inSingletonScope();
 
   return container;

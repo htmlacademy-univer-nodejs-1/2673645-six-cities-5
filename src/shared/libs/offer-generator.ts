@@ -1,10 +1,10 @@
-import { 
-  getRandomNumber, 
-  getRandomArrayElement, 
+import {
+  getRandomNumber,
+  getRandomArrayElement,
   getRandomArrayElements,
   getRandomDate,
   formatDate,
-  joinArray 
+  joinArray
 } from './helper.js';
 import type { MockOffer } from '../types/mock-data.type.js';
 import type { Amenity } from '../types/offer.type.js';
@@ -59,15 +59,12 @@ const USER_TYPES: UserType[] = ['обычный', 'pro'];
 export class OfferGenerator {
   static generateMockOffer(template: GeneratorOffer): MockOffer {
     const rating = (getRandomNumber(10, 50) / 10).toFixed(1);
-    
     const amenities = getRandomArrayElements(
       [...AMENITIES],
       getRandomNumber(1, AMENITIES.length + 1)
     );
-    
     const userName = getRandomArrayElement([...USER_NAMES]);
     const userNumber = getRandomNumber(1, 999);
-    
     const userType = getRandomArrayElement(USER_TYPES);
 
     return {
@@ -95,13 +92,10 @@ export class OfferGenerator {
 
   static generateMultipleMockOffers(templates: GeneratorOffer[], count: number): MockOffer[] {
     const offers: MockOffer[] = [];
-    
     for (let i = 0; i < count; i++) {
       const template = getRandomArrayElement(templates);
-      
       offers.push(this.generateMockOffer(template));
     }
-    
     return offers;
   }
 }

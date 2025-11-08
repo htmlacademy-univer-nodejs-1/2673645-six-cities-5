@@ -135,17 +135,14 @@ export class ImportCommand implements Command {
       }));
 
       await this.offerRepository.insertMany(offersToSave);
-
-      console.log(chalk.green.bold(`Успешно импортировано: ${offers.length} предложений\n`));
+      console.log(chalk.green.bold(`Успешно импортировано: ${offers.length} предложений`));
       console.log(chalk.cyan('Статистика:'));
       console.log(chalk.white(`Всего предложений: ${offers.length}`));
       console.log(chalk.white(`Уникальных пользователей: ${users.size}`));
-      console.log(chalk.green.bold('Импорт завершен успешно\n'));
-
+      console.log(chalk.green.bold('Импорт завершен успешно'));
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       console.error(chalk.red(`Ошибка при импорте: ${msg}\n`));
-      process.exit(1);
     } finally {
       await this.db.disconnect();
     }

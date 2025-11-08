@@ -32,7 +32,6 @@ export class TSVReader {
 
     this.countRentalOffers++;
     const rentalOffer = this.parseRentalOffer(value.split('\t'));
-    
     return [rentalOffer, this.countRentalOffers];
   }
 
@@ -51,7 +50,7 @@ export class TSVReader {
       roomsCount: parseInt(fields[10], 10),
       guestsCount: parseInt(fields[11], 10),
       rentalCost: parseInt(fields[12], 10),
-      convenienceList: fields[13].split(';') as Convenience[],
+      convenienceList: fields[13].split(';') as unknown as Convenience[],
       author: fields[14],
       commentsCount: parseInt(fields[15], 10),
       offerCoordinates: {

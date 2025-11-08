@@ -3,13 +3,13 @@ import type { CityName, Coordinates } from './city.type.js';
 
 export type HousingType = 'apartment' | 'house' | 'room' | 'hotel';
 
-export type Amenity = 
-  | 'Breakfast' 
-  | 'Air conditioning' 
-  | 'Laptop friendly workspace' 
-  | 'Baby seat' 
-  | 'Washer' 
-  | 'Towels' 
+export type Amenity =
+  | 'Breakfast'
+  | 'Air conditioning'
+  | 'Laptop friendly workspace'
+  | 'Baby seat'
+  | 'Washer'
+  | 'Towels'
   | 'Fridge';
 
 export interface Offer {

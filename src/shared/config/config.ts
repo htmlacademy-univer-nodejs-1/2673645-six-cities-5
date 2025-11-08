@@ -53,8 +53,7 @@ const schema = convict({
 export function loadConfig(): convict.Config<any> {
   try {
     require('dotenv').config();
-  } catch (error) {
-  }
+  } catch (error) { /* empty */ }
 
   schema.validate({ allowed: 'strict' });
   return schema;

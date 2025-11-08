@@ -14,7 +14,7 @@
     "cli": "npm run build && node ./dist/src/cli/main.cli.js",
     "json-server": "json-server --watch src/mocks/mock-server-data.json --port 3000",
     "build": "npm run clean && npm run compile",
-    "lint": "eslint src/ --ext .ts",
+    "lint": "eslint src/",
     "compile": "tsc -p tsconfig.json",
     "clean": "rimraf dist",
     "ts": "ts-node"
