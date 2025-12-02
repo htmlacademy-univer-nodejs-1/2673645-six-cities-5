@@ -8,27 +8,27 @@ import { IMiddleware } from '../interfaces/middleware.interface.js';
 
 export interface UploadFileOptions {
   uploadDir: string;
+  fieldName?: string;
   maxFileSize?: number;
   allowedMimes?: string[];
 }
 
 export class UploadFileMiddleware implements IMiddleware {
   private upload: multer.Multer;
-  private options: Required<UploadFileOptions>;
+  private fieldName: string;
 
   constructor(
     options: UploadFileOptions,
     private logger: Logger
   ) {
-    this.options = {
-      uploadDir: options.uploadDir,
-      maxFileSize: options.maxFileSize || 5 * 1024 * 1024, // 5MB
-      allowedMimes: options.allowedMimes || ['image/jpeg', 'image/png', 'image/webp']
-    };
+    this.fieldName = options.fieldName || 'avatar';
+
+    const maxFileSize = options.maxFileSize || 5 * 1024 * 1024;
+    const allowedMimes = options.allowedMimes || ['image/jpeg', 'image/png', 'image/webp'];
 
     const storage = multer.diskStorage({
       destination: (req, file, cb) => {
-        cb(null, this.options.uploadDir);
+        cb(null, options.uploadDir);
       },
       filename: (req, file, cb) => {
         const filename = nanoid();
@@ -45,9 +45,9 @@ export class UploadFileMiddleware implements IMiddleware {
       file: Express.Multer.File,
       cb: multer.FileFilterCallback
     ) => {
-      if (!this.options.allowedMimes.includes(file.mimetype)) {
+      if (!allowedMimes.includes(file.mimetype)) {
         this.logger.warn(`Invalid file type: ${file.mimetype}`);
-        cb(new Error(`Invalid file type. Allowed types: ${this.options.allowedMimes.join(', ')}`));
+        cb(null, false);
         return;
       }
       cb(null, true);
@@ -57,60 +57,17 @@ export class UploadFileMiddleware implements IMiddleware {
       storage,
       fileFilter,
       limits: {
-        fileSize: this.options.maxFileSize
+        fileSize: maxFileSize
       }
     });
   }
 
   execute(req: Request, res: Response, next: NextFunction): void {
-    this.upload.single('avatar')(req, res, (err: any) => {
-      if (err instanceof MulterError) {
-        this.logger.error(`Multer error: ${err.message}, code: ${err.code}`);
+    const uploadHandler = this.upload.single(this.fieldName);
 
-        const statusCode = StatusCodes.BAD_REQUEST;
-        let message = err.message;
-
-        const errorCode = err.code as string;
-
-        switch (errorCode) {
-          case 'LIMIT_FILE_SIZE':
-            message = `File is too large. Maximum size: ${this.options.maxFileSize / 1024 / 1024}MB`;
-            break;
-          case 'LIMIT_FILE_COUNT':
-            message = 'Too many files uploaded';
-            break;
-          case 'LIMIT_UNEXPECTED_FILE':
-            message = 'Unexpected field name for file upload';
-            break;
-          case 'LIMIT_FIELD_KEY':
-            message = 'Field name is too long';
-            break;
-          case 'LIMIT_FIELD_VALUE':
-            message = 'Field value is too long';
-            break;
-          case 'LIMIT_FIELD_COUNT':
-            message = 'Too many fields';
-            break;
-          case 'LIMIT_PART_COUNT':
-            message = 'Too many parts';
-            break;
-          default:
-            message = err.message;
-        }
-
-        res.status(statusCode).json({
-          error: 'Upload Error',
-          message
-        });
-        return;
-      }
-
+    uploadHandler(req, res, (err: any) => {
       if (err) {
-        this.logger.error(`File upload error: ${err.message}`);
-        res.status(StatusCodes.BAD_REQUEST).json({
-          error: 'Upload Error',
-          message: err.message
-        });
+        this.handleUploadError(err, res);
         return;
       }
 
@@ -125,6 +82,36 @@ export class UploadFileMiddleware implements IMiddleware {
 
       this.logger.info(`File uploaded successfully: ${req.file.filename}`);
       next();
+    });
+  }
+
+  private handleUploadError(err: any, res: Response): void {
+    if (err instanceof MulterError) {
+      this.logger.error(`Multer error: ${err.message}, code: ${err.code}`);
+
+      const errorMessages: Record<string, string> = {
+        'LIMIT_FILE_SIZE': 'File is too large. Maximum size: 5MB',
+        'LIMIT_FILE_COUNT': 'Too many files uploaded',
+        'LIMIT_UNEXPECTED_FILE': 'Unexpected field name for file upload',
+        'LIMIT_FIELD_KEY': 'Field name is too long',
+        'LIMIT_FIELD_VALUE': 'Field value is too long',
+        'LIMIT_FIELD_COUNT': 'Too many fields',
+        'LIMIT_PART_COUNT': 'Too many parts'
+      };
+
+      const message = errorMessages[err.code] || err.message;
+
+      res.status(StatusCodes.BAD_REQUEST).json({
+        error: 'Upload Error',
+        message
+      });
+      return;
+    }
+
+    this.logger.error(`File upload error: ${err.message}`);
+    res.status(StatusCodes.BAD_REQUEST).json({
+      error: 'Upload Error',
+      message: err.message
     });
   }
 }

@@ -52,9 +52,8 @@ const schema = convict({
   salt: {
     doc: 'Salt for password hashing',
     format: String,
-    default: '',
-    env: 'SALT',
-    sensitive: true
+    default: '10',
+    env: 'SALT'
   },
   uploadDir: {
     doc: 'Directory for uploaded files',
@@ -65,9 +64,15 @@ const schema = convict({
   jwtSecret: {
     doc: 'JWT secret key',
     format: String,
-    default: '',
+    default: 'your-secret-key-change-in-production',
     env: 'JWT_SECRET',
     sensitive: true
+  },
+  jwtExpiration: {
+    doc: 'JWT token expiration time',
+    format: String,
+    default: '24h',
+    env: 'JWT_EXPIRATION'
   },
   logLevel: {
     doc: 'Log level',
