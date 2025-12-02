@@ -1,9 +1,8 @@
 import { NextFunction, Request, Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import multer from 'multer';
+import multer, { MulterError } from 'multer';
 import mime from 'mime-types';
 import { nanoid } from 'nanoid';
-import path from 'node:path';
 import { Logger } from 'pino';
 import { IMiddleware } from '../interfaces/middleware.interface.js';
 
@@ -65,16 +64,38 @@ export class UploadFileMiddleware implements IMiddleware {
 
   execute(req: Request, res: Response, next: NextFunction): void {
     this.upload.single('avatar')(req, res, (err: any) => {
-      if (err instanceof multer.MulterError) {
-        this.logger.error(`Multer error: ${err.message}`);
+      if (err instanceof MulterError) {
+        this.logger.error(`Multer error: ${err.message}, code: ${err.code}`);
 
         const statusCode = StatusCodes.BAD_REQUEST;
         let message = err.message;
 
-        if (err.code === 'FILE_TOO_LARGE') {
-          message = `File is too large. Maximum size: ${this.options.maxFileSize / 1024 / 1024}MB`;
-        } else if (err.code === 'LIMIT_FILE_COUNT') {
-          message = 'Too many files uploaded';
+        const errorCode = err.code as string;
+
+        switch (errorCode) {
+          case 'LIMIT_FILE_SIZE':
+            message = `File is too large. Maximum size: ${this.options.maxFileSize / 1024 / 1024}MB`;
+            break;
+          case 'LIMIT_FILE_COUNT':
+            message = 'Too many files uploaded';
+            break;
+          case 'LIMIT_UNEXPECTED_FILE':
+            message = 'Unexpected field name for file upload';
+            break;
+          case 'LIMIT_FIELD_KEY':
+            message = 'Field name is too long';
+            break;
+          case 'LIMIT_FIELD_VALUE':
+            message = 'Field value is too long';
+            break;
+          case 'LIMIT_FIELD_COUNT':
+            message = 'Too many fields';
+            break;
+          case 'LIMIT_PART_COUNT':
+            message = 'Too many parts';
+            break;
+          default:
+            message = err.message;
         }
 
         res.status(statusCode).json({

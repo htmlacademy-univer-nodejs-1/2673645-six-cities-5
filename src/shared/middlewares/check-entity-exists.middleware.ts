@@ -12,35 +12,35 @@ export class CheckEntityExistsMiddleware implements IMiddleware {
     private logger: Logger
   ) {}
 
-  async execute(req: Request, res: Response, next: NextFunction): Promise<void> {
+  execute(req: Request, res: Response, next: NextFunction): void {
     const id = req.params[this.paramName];
 
-    try {
-      this.logger.debug(`Checking if ${this.entityName} with id ${id} exists`);
+    this.logger.debug(`Checking if ${this.entityName} with id ${id} exists`);
 
-      const entity = await this.service.findById(id);
+    this.service.findById(id)
+      .then((entity) => {
+        if (!entity) {
+          this.logger.warn(`${this.entityName} with id ${id} not found`);
+          res.status(StatusCodes.NOT_FOUND).json({
+            error: 'Not Found',
+            message: `${this.entityName} with id ${id} not found`
+          });
+          return;
+        }
 
-      if (!entity) {
-        this.logger.warn(`${this.entityName} with id ${id} not found`);
-        res.status(StatusCodes.NOT_FOUND).json({
-          error: 'Not Found',
-          message: `${this.entityName} with id ${id} not found`
+        (req as any).entity = entity;
+
+        this.logger.debug(`${this.entityName} with id ${id} found`);
+        next();
+      })
+      .catch((error) => {
+        const msg = error instanceof Error ? error.message : String(error);
+        this.logger.error(`Error checking entity existence: ${msg}`);
+
+        res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+          error: 'Internal Server Error',
+          message: 'Failed to verify entity'
         });
-        return;
-      }
-
-      (req as any).entity = entity;
-
-      this.logger.debug(`${this.entityName} with id ${id} found`);
-      next();
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
-      this.logger.error(`Error checking entity existence: ${msg}`);
-
-      res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
-        error: 'Internal Server Error',
-        message: 'Failed to verify entity'
       });
-    }
   }
 }
