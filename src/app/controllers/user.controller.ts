@@ -1,5 +1,3 @@
-// src/app/controllers/user.controller.ts
-
 import { injectable, inject } from 'inversify';
 import { Request, Response } from 'express';
 import { Logger } from 'pino';
@@ -10,13 +8,16 @@ import { CreateUserDto } from '../../shared/dto/user/create-user.dto.js';
 import { LoginUserDto } from '../../shared/dto/user/login-user.dto.js';
 import { ValidateObjectIdMiddleware } from '../../shared/middlewares/validate-object-id.middleware.js';
 import { ValidateDtoMiddleware } from '../../shared/middlewares/validate-dto.middleware.js';
-import { NotFoundError, ConflictError, UnauthorizedError, BadRequestError } from '../../shared/errors/http-error.js';
+import { CheckEntityExistsMiddleware } from '../../shared/middlewares/check-entity-exists.middleware.js';
+import { UploadFileMiddleware } from '../../shared/middlewares/upload-file.middleware.js';
+import { ConflictError, UnauthorizedError, BadRequestError } from '../../shared/errors/http-error.js';
 
 @injectable()
 export class UserController extends BaseController {
   constructor(
     @inject(TYPES.Logger) logger: Logger,
-    @inject(TYPES.UserService) private userService: UserService
+    @inject(TYPES.UserService) private userService: UserService,
+    @inject(TYPES.Config) private config: any
   ) {
     super(logger);
   }
@@ -25,6 +26,20 @@ export class UserController extends BaseController {
     const validateCreateUser = new ValidateDtoMiddleware(CreateUserDto, this.logger);
     const validateLoginUser = new ValidateDtoMiddleware(LoginUserDto, this.logger);
     const validateObjectId = new ValidateObjectIdMiddleware('id');
+    const checkUserExists = new CheckEntityExistsMiddleware(
+      this.userService,
+      'id',
+      'User',
+      this.logger
+    );
+    const uploadAvatar = new UploadFileMiddleware(
+      {
+        uploadDir: this.config.get('uploadDir'),
+        maxFileSize: 5 * 1024 * 1024, // 5MB
+        allowedMimes: ['image/jpeg', 'image/png', 'image/webp']
+      },
+      this.logger
+    );
 
     this.addRoute({
       path: '/users/register',
@@ -55,14 +70,14 @@ export class UserController extends BaseController {
     this.addRoute({
       path: '/users/:id',
       method: 'get',
-      middlewares: [validateObjectId],
+      middlewares: [validateObjectId, checkUserExists],
       handler: this.show
     });
 
     this.addRoute({
       path: '/users/:id/avatar',
       method: 'post',
-      middlewares: [validateObjectId],
+      middlewares: [validateObjectId, checkUserExists, uploadAvatar],
       handler: this.uploadAvatar
     });
   }
@@ -80,10 +95,9 @@ export class UserController extends BaseController {
     }
 
     const user = await this.userService.create(dto);
-
     const userResponse = this.sanitizeUserResponse(user);
 
-    this.logger.info(`User registered successfully: ${user.email} (id: ${user.id})`);
+    this.logger.info(`User registered successfully: ${user.email}`);
     this.created(res, userResponse);
   }
 
@@ -138,40 +152,26 @@ export class UserController extends BaseController {
   }
 
   private async show(req: Request, res: Response): Promise<void> {
-    const { id } = req.params;
+    const user = (req as any).entity;
 
-    this.logger.info(`Fetching user with id: ${id}`);
-
-    const user = await this.userService.findById(id);
-
-    if (!user) {
-      this.logger.warn(`User with id ${id} not found`);
-      throw new NotFoundError(`User with id ${id} not found`);
-    }
-
+    this.logger.info(`User ${user.id} retrieved successfully`);
     const userResponse = this.sanitizeUserResponse(user);
-
-    this.logger.info(`User ${id} retrieved successfully`);
     this.ok(res, userResponse);
   }
 
   private async uploadAvatar(req: Request, res: Response): Promise<void> {
     const { id } = req.params;
+    const file = req.file;
 
-    const avatarPath = req.body.avatarPath;
-
-    if (!avatarPath) {
+    if (!file) {
       throw new BadRequestError('Avatar file is required');
     }
 
-    this.logger.info(`Uploading avatar for user: ${id}`);
+    const avatarPath = `/uploads/${file.filename}`;
+
+    this.logger.info(`Uploading avatar for user: ${id}, filename: ${file.filename}`);
 
     const user = await this.userService.updateAvatar(id, avatarPath);
-
-    if (!user) {
-      this.logger.warn(`User with id ${id} not found for avatar upload`);
-      throw new NotFoundError(`User with id ${id} not found`);
-    }
 
     const userResponse = this.sanitizeUserResponse(user);
 
