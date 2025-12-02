@@ -1,5 +1,5 @@
 import { injectable, inject } from 'inversify';
-import { Request, Response } from 'express';
+import { Response } from 'express';
 import { Logger } from 'pino';
 import { BaseController } from '../../shared/controllers/base.controller.js';
 import { TYPES } from '../../shared/ioc/ioc-container.js';
@@ -10,10 +10,10 @@ import { ValidateObjectIdMiddleware } from '../../shared/middlewares/validate-ob
 import { ValidateDtoMiddleware } from '../../shared/middlewares/validate-dto.middleware.js';
 import { CheckEntityExistsMiddleware } from '../../shared/middlewares/check-entity-exists.middleware.js';
 import { AuthenticateMiddleware } from '../../shared/middlewares/authenticate.middleware.js';
-import { AuthenticateOptionalMiddleware } from '../../shared/middlewares/authenticate-optional.middleware.js'; // ← Добавьте эту строку
 import { JwtService } from '../../shared/libs/jwt.js';
 import { AuthenticatedRequest } from '../../shared/interfaces/authenticated-request.interface.js';
 import { BadRequestError, ForbiddenError, UnauthorizedError } from '../../shared/errors/http-error.js';
+import { IOffer } from '../../shared/db/models/offer.schema.js';
 
 @injectable()
 export class OfferController extends BaseController {
@@ -36,33 +36,23 @@ export class OfferController extends BaseController {
       this.logger
     );
     const authenticate = new AuthenticateMiddleware(this.jwtService, this.logger);
-    const authenticateOptional = new AuthenticateOptionalMiddleware(this.jwtService, this.logger);
 
     this.addRoute({
       path: '/offers',
       method: 'get',
-      middlewares: [authenticateOptional],
       handler: this.index
     });
 
     this.addRoute({
       path: '/offers/premium',
       method: 'get',
-      middlewares: [authenticateOptional],
       handler: this.premium
-    });
-
-    this.addRoute({
-      path: '/offers/favorites',
-      method: 'get',
-      middlewares: [authenticate],
-      handler: this.favorites
     });
 
     this.addRoute({
       path: '/offers/:id',
       method: 'get',
-      middlewares: [validateObjectId, checkOfferExists, authenticateOptional],
+      middlewares: [validateObjectId, checkOfferExists],
       handler: this.show
     });
 
@@ -88,6 +78,13 @@ export class OfferController extends BaseController {
     });
 
     this.addRoute({
+      path: '/offers/favorites',
+      method: 'get',
+      middlewares: [authenticate],
+      handler: this.favorites
+    });
+
+    this.addRoute({
       path: '/offers/:id/favorite',
       method: 'post',
       middlewares: [authenticate, validateObjectId, checkOfferExists],
@@ -104,13 +101,12 @@ export class OfferController extends BaseController {
 
   private async index(req: AuthenticatedRequest, res: Response): Promise<void> {
     const { city, limit } = req.query;
-    const userId = req.user?.id;
 
-    this.logger.info(`Fetching offers with params: city=${city || 'all'}, userId=${userId || 'anonymous'}`);
+    this.logger.info(`Fetching offers with params: city=${city || 'all'}`);
 
     const offers = city
-      ? await this.offerService.findByCity(city as string, Number(limit) || 60, userId)
-      : await this.offerService.findAll(Number(limit) || 60, userId);
+      ? await this.offerService.findByCity(city as string, Number(limit) || 60)
+      : await this.offerService.findAll(Number(limit) || 60);
 
     this.logger.info(`Retrieved ${offers.length} offers`);
     this.ok(res, offers);
@@ -118,7 +114,7 @@ export class OfferController extends BaseController {
 
   private async show(req: AuthenticatedRequest, res: Response): Promise<void> {
     const { id } = req.params;
-    const offer = (req as any).entity;
+    const offer = (req as AuthenticatedRequest & { entity: IOffer }).entity;
 
     this.logger.info(`Offer ${id} retrieved successfully`);
     this.ok(res, offer);
@@ -146,7 +142,7 @@ export class OfferController extends BaseController {
     const { id } = req.params;
     const dto = new UpdateOfferDto(req.body);
     const userId = req.user?.id;
-    const existingOffer = (req as any).entity;
+    const existingOffer = (req as AuthenticatedRequest & { entity: IOffer }).entity;
 
     if (!userId) {
       throw new UnauthorizedError('Authentication required');
@@ -168,7 +164,7 @@ export class OfferController extends BaseController {
   private async delete(req: AuthenticatedRequest, res: Response): Promise<void> {
     const { id } = req.params;
     const userId = req.user?.id;
-    const existingOffer = (req as any).entity;
+    const existingOffer = (req as AuthenticatedRequest & { entity: IOffer }).entity;
 
     if (!userId) {
       throw new UnauthorizedError('Authentication required');
@@ -189,7 +185,6 @@ export class OfferController extends BaseController {
 
   private async premium(req: AuthenticatedRequest, res: Response): Promise<void> {
     const { city } = req.query;
-    const userId = req.user?.id;
 
     if (!city) {
       throw new BadRequestError('City parameter is required');
@@ -197,7 +192,7 @@ export class OfferController extends BaseController {
 
     this.logger.info(`Fetching premium offers for city: ${city}`);
 
-    const offers = await this.offerService.findPremium(city as string, userId);
+    const offers = await this.offerService.findPremium(city as string);
 
     this.logger.info(`Retrieved ${offers.length} premium offers for ${city}`);
     this.ok(res, offers);

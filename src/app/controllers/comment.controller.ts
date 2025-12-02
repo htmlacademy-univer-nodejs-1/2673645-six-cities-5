@@ -1,5 +1,5 @@
 import { injectable, inject } from 'inversify';
-import { Request, Response } from 'express';
+import { Response } from 'express';
 import { Logger } from 'pino';
 import { BaseController } from '../../shared/controllers/base.controller.js';
 import { TYPES } from '../../shared/ioc/ioc-container.js';
@@ -9,14 +9,18 @@ import { CreateCommentDto } from '../../shared/dto/comment/create-comment.dto.js
 import { ValidateObjectIdMiddleware } from '../../shared/middlewares/validate-object-id.middleware.js';
 import { ValidateDtoMiddleware } from '../../shared/middlewares/validate-dto.middleware.js';
 import { CheckEntityExistsMiddleware } from '../../shared/middlewares/check-entity-exists.middleware.js';
-import { BadRequestError } from '../../shared/errors/http-error.js';
+import { AuthenticateMiddleware } from '../../shared/middlewares/authenticate.middleware.js';
+import { JwtService } from '../../shared/libs/jwt.js';
+import { AuthenticatedRequest } from '../../shared/interfaces/authenticated-request.interface.js';
+import { BadRequestError, UnauthorizedError } from '../../shared/errors/http-error.js';
 
 @injectable()
 export class CommentController extends BaseController {
   constructor(
     @inject(TYPES.Logger) logger: Logger,
     @inject(TYPES.CommentService) private commentService: CommentService,
-    @inject(TYPES.OfferService) private offerService: OfferService
+    @inject(TYPES.OfferService) private offerService: OfferService,
+    @inject(TYPES.JwtService) private jwtService: JwtService
   ) {
     super(logger);
   }
@@ -30,7 +34,9 @@ export class CommentController extends BaseController {
       'Offer',
       this.logger
     );
+    const authenticate = new AuthenticateMiddleware(this.jwtService, this.logger);
 
+    // Публичный маршрут
     this.addRoute({
       path: '/comments/:offerId',
       method: 'get',
@@ -38,15 +44,16 @@ export class CommentController extends BaseController {
       handler: this.index
     });
 
+    // Защищенный маршрут (требует аутентификации)
     this.addRoute({
       path: '/comments/:offerId',
       method: 'post',
-      middlewares: [validateObjectId, checkOfferExists, validateCreateComment],
+      middlewares: [authenticate, validateObjectId, checkOfferExists, validateCreateComment],
       handler: this.create
     });
   }
 
-  private async index(req: Request, res: Response): Promise<void> {
+  private async index(req: AuthenticatedRequest, res: Response): Promise<void> {
     const { offerId } = req.params;
     const limit = req.query.limit ? Number(req.query.limit) : 50;
 
@@ -62,10 +69,16 @@ export class CommentController extends BaseController {
     this.ok(res, comments);
   }
 
-  private async create(req: Request, res: Response): Promise<void> {
+  private async create(req: AuthenticatedRequest, res: Response): Promise<void> {
     const { offerId } = req.params;
     const dto = new CreateCommentDto(req.body);
-    dto.authorId = req.body.authorId;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      throw new UnauthorizedError('Authentication required');
+    }
+
+    dto.authorId = userId;
     dto.offerId = offerId;
 
     if (!dto.authorId) {

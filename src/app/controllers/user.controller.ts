@@ -1,6 +1,7 @@
 import { injectable, inject } from 'inversify';
 import { Request, Response } from 'express';
 import { Logger } from 'pino';
+import convict from 'convict';
 import { BaseController } from '../../shared/controllers/base.controller.js';
 import { TYPES } from '../../shared/ioc/ioc-container.js';
 import { UserService } from '../../shared/services/user.service.js';
@@ -14,13 +15,14 @@ import { AuthenticateMiddleware } from '../../shared/middlewares/authenticate.mi
 import { JwtService } from '../../shared/libs/jwt.js';
 import { AuthenticatedRequest } from '../../shared/interfaces/authenticated-request.interface.js';
 import { ConflictError, UnauthorizedError, BadRequestError } from '../../shared/errors/http-error.js';
+import { IUser } from '../../shared/db/models/user.schema.js';
 
 @injectable()
 export class UserController extends BaseController {
   constructor(
     @inject(TYPES.Logger) logger: Logger,
     @inject(TYPES.UserService) private userService: UserService,
-    @inject(TYPES.Config) private config: any,
+    @inject(TYPES.Config) private config: convict.Config<unknown>,
     @inject(TYPES.JwtService) private jwtService: JwtService
   ) {
     super(logger);
@@ -62,6 +64,13 @@ export class UserController extends BaseController {
     });
 
     this.addRoute({
+      path: '/users/:id',
+      method: 'get',
+      middlewares: [validateObjectId, checkUserExists],
+      handler: this.show
+    });
+
+    this.addRoute({
       path: '/users/login',
       method: 'get',
       middlewares: [authenticate],
@@ -73,13 +82,6 @@ export class UserController extends BaseController {
       method: 'post',
       middlewares: [authenticate],
       handler: this.logout
-    });
-
-    this.addRoute({
-      path: '/users/:id',
-      method: 'get',
-      middlewares: [validateObjectId, checkUserExists],
-      handler: this.show
     });
 
     this.addRoute({
@@ -172,8 +174,8 @@ export class UserController extends BaseController {
     this.noContent(res);
   }
 
-  private async show(req: Request, res: Response): Promise<void> {
-    const user = (req as any).entity;
+  private async show(req: AuthenticatedRequest, res: Response): Promise<void> {
+    const user = (req as AuthenticatedRequest & { entity: IUser }).entity;
 
     this.logger.info(`User ${user.id} retrieved successfully`);
     const userResponse = this.sanitizeUserResponse(user);
@@ -206,9 +208,14 @@ export class UserController extends BaseController {
     this.ok(res, userResponse);
   }
 
-  private sanitizeUserResponse(user: any): object {
+  private sanitizeUserResponse(user: IUser | null): Record<string, unknown> {
+    if (!user) {
+      return {};
+    }
+
     const userObject = user.toObject ? user.toObject() : user;
-    const { password, ...sanitized } = userObject;
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { password: _password, ...sanitized } = userObject;
     return sanitized;
   }
 }
