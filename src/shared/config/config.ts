@@ -1,10 +1,7 @@
-// src/shared/config/config.ts
-
 import convict from 'convict';
 import 'convict-format-with-validator';
 import dotenv from 'dotenv';
 
-// Загружаем переменные окружения из .env файла
 dotenv.config();
 
 const schema = convict({

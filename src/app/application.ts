@@ -23,6 +23,10 @@ export class Application {
 
   private initMiddleware(): void {
     this.app.use(express.json());
+    const uploadDir = this.config.get('uploadDir');
+    this.app.use('/uploads', express.static(uploadDir));
+    this.logger.info(`✓ Static files directory: ${uploadDir}`);
+
     this.app.use((req, res, next) => {
       res.header('Access-Control-Allow-Origin', '*');
       res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH');
@@ -71,7 +75,7 @@ export class Application {
 
     this.server = this.app.listen(port, () => {
       this.logger.info(`🚀 Server started on http://localhost:${port}`);
-      this.logger.info(`📚 API documentation: http://localhost:${port}/api-docs`);
+      this.logger.info(`📁 Upload directory: ${this.config.get('uploadDir')}`);
     });
   }
 
@@ -79,7 +83,7 @@ export class Application {
     if (this.server) {
       this.server.close();
       await this.db.disconnect();
-      this.logger.info('✓ Application stopped');
+      this.logger.info('Application stopped');
     }
   }
 }

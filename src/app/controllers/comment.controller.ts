@@ -4,16 +4,19 @@ import { Logger } from 'pino';
 import { BaseController } from '../../shared/controllers/base.controller.js';
 import { TYPES } from '../../shared/ioc/ioc-container.js';
 import { CommentService } from '../../shared/services/comment.service.js';
+import { OfferService } from '../../shared/services/offer.service.js';
 import { CreateCommentDto } from '../../shared/dto/comment/create-comment.dto.js';
 import { ValidateObjectIdMiddleware } from '../../shared/middlewares/validate-object-id.middleware.js';
 import { ValidateDtoMiddleware } from '../../shared/middlewares/validate-dto.middleware.js';
+import { CheckEntityExistsMiddleware } from '../../shared/middlewares/check-entity-exists.middleware.js';
 import { BadRequestError } from '../../shared/errors/http-error.js';
 
 @injectable()
 export class CommentController extends BaseController {
   constructor(
     @inject(TYPES.Logger) logger: Logger,
-    @inject(TYPES.CommentService) private commentService: CommentService
+    @inject(TYPES.CommentService) private commentService: CommentService,
+    @inject(TYPES.OfferService) private offerService: OfferService
   ) {
     super(logger);
   }
@@ -21,18 +24,24 @@ export class CommentController extends BaseController {
   protected initializeRoutes(): void {
     const validateObjectId = new ValidateObjectIdMiddleware('offerId');
     const validateCreateComment = new ValidateDtoMiddleware(CreateCommentDto, this.logger);
+    const checkOfferExists = new CheckEntityExistsMiddleware(
+      this.offerService,
+      'offerId',
+      'Offer',
+      this.logger
+    );
 
     this.addRoute({
       path: '/comments/:offerId',
       method: 'get',
-      middlewares: [validateObjectId],
+      middlewares: [validateObjectId, checkOfferExists],
       handler: this.index
     });
 
     this.addRoute({
       path: '/comments/:offerId',
       method: 'post',
-      middlewares: [validateObjectId, validateCreateComment],
+      middlewares: [validateObjectId, checkOfferExists, validateCreateComment],
       handler: this.create
     });
   }
@@ -41,8 +50,8 @@ export class CommentController extends BaseController {
     const { offerId } = req.params;
     const limit = req.query.limit ? Number(req.query.limit) : 50;
 
-    if (limit < 1 || limit > 50) {
-      throw new BadRequestError('Limit must be between 1 and 50');
+    if (isNaN(limit) || limit < 1 || limit > 50) {
+      throw new BadRequestError('Limit must be a number between 1 and 50');
     }
 
     this.logger.info(`Fetching comments for offer: ${offerId}, limit: ${limit}`);

@@ -8,7 +8,8 @@ import { CreateOfferDto } from '../../shared/dto/offer/create-offer.dto.js';
 import { UpdateOfferDto } from '../../shared/dto/offer/update-offer.dto.js';
 import { ValidateObjectIdMiddleware } from '../../shared/middlewares/validate-object-id.middleware.js';
 import { ValidateDtoMiddleware } from '../../shared/middlewares/validate-dto.middleware.js';
-import { NotFoundError, BadRequestError } from '../../shared/errors/http-error.js';
+import { CheckEntityExistsMiddleware } from '../../shared/middlewares/check-entity-exists.middleware.js';
+import { BadRequestError } from '../../shared/errors/http-error.js';
 
 @injectable()
 export class OfferController extends BaseController {
@@ -23,6 +24,12 @@ export class OfferController extends BaseController {
     const validateObjectId = new ValidateObjectIdMiddleware('id');
     const validateCreateOffer = new ValidateDtoMiddleware(CreateOfferDto, this.logger);
     const validateUpdateOffer = new ValidateDtoMiddleware(UpdateOfferDto, this.logger);
+    const checkOfferExists = new CheckEntityExistsMiddleware(
+      this.offerService,
+      'id',
+      'Offer',
+      this.logger
+    );
 
     this.addRoute({
       path: '/offers',
@@ -45,7 +52,7 @@ export class OfferController extends BaseController {
     this.addRoute({
       path: '/offers/:id',
       method: 'get',
-      middlewares: [validateObjectId],
+      middlewares: [validateObjectId, checkOfferExists],
       handler: this.show
     });
 
@@ -59,28 +66,28 @@ export class OfferController extends BaseController {
     this.addRoute({
       path: '/offers/:id',
       method: 'patch',
-      middlewares: [validateObjectId, validateUpdateOffer],
+      middlewares: [validateObjectId, checkOfferExists, validateUpdateOffer],
       handler: this.update
     });
 
     this.addRoute({
       path: '/offers/:id',
       method: 'delete',
-      middlewares: [validateObjectId],
+      middlewares: [validateObjectId, checkOfferExists],
       handler: this.delete
     });
 
     this.addRoute({
       path: '/offers/:id/favorite',
       method: 'post',
-      middlewares: [validateObjectId],
+      middlewares: [validateObjectId, checkOfferExists],
       handler: this.addFavorite
     });
 
     this.addRoute({
       path: '/offers/:id/favorite',
       method: 'delete',
-      middlewares: [validateObjectId],
+      middlewares: [validateObjectId, checkOfferExists],
       handler: this.removeFavorite
     });
   }
@@ -88,7 +95,7 @@ export class OfferController extends BaseController {
   private async index(req: Request, res: Response): Promise<void> {
     const { city, limit } = req.query;
 
-    this.logger.info(`Fetching offers with params: city=${city}, limit=${limit}`);
+    this.logger.info(`Fetching offers with params: city=${city || 'all'}, limit=${limit || 60}`);
 
     const offers = city
       ? await this.offerService.findByCity(city as string, Number(limit) || 60)
@@ -101,14 +108,7 @@ export class OfferController extends BaseController {
   private async show(req: Request, res: Response): Promise<void> {
     const { id } = req.params;
 
-    this.logger.info(`Fetching offer with id: ${id}`);
-
-    const offer = await this.offerService.findById(id);
-
-    if (!offer) {
-      this.logger.warn(`Offer with id ${id} not found`);
-      throw new NotFoundError(`Offer with id ${id} not found`);
-    }
+    const offer = (req as any).entity;
 
     this.logger.info(`Offer ${id} retrieved successfully`);
     this.ok(res, offer);
@@ -139,11 +139,6 @@ export class OfferController extends BaseController {
 
     const offer = await this.offerService.update(id, dto);
 
-    if (!offer) {
-      this.logger.warn(`Offer with id ${id} not found for update`);
-      throw new NotFoundError(`Offer with id ${id} not found`);
-    }
-
     this.logger.info(`Offer ${id} updated successfully`);
     this.ok(res, offer);
   }
@@ -153,12 +148,7 @@ export class OfferController extends BaseController {
 
     this.logger.info(`Deleting offer with id: ${id}`);
 
-    const deleted = await this.offerService.delete(id);
-
-    if (!deleted) {
-      this.logger.warn(`Offer with id ${id} not found for deletion`);
-      throw new NotFoundError(`Offer with id ${id} not found`);
-    }
+    await this.offerService.delete(id);
 
     this.logger.info(`Offer ${id} deleted successfully`);
     this.noContent(res);
@@ -207,11 +197,6 @@ export class OfferController extends BaseController {
 
     const offer = await this.offerService.addToFavorites(id, userId);
 
-    if (!offer) {
-      this.logger.warn(`Offer with id ${id} not found`);
-      throw new NotFoundError(`Offer with id ${id} not found`);
-    }
-
     this.logger.info(`Offer ${id} added to favorites for user ${userId}`);
     this.ok(res, offer);
   }
@@ -228,11 +213,6 @@ export class OfferController extends BaseController {
     this.logger.info(`Removing offer ${id} from favorites for user ${userId}`);
 
     const offer = await this.offerService.removeFromFavorites(id, userId);
-
-    if (!offer) {
-      this.logger.warn(`Offer with id ${id} not found`);
-      throw new NotFoundError(`Offer with id ${id} not found`);
-    }
 
     this.logger.info(`Offer ${id} removed from favorites for user ${userId}`);
     this.ok(res, offer);
