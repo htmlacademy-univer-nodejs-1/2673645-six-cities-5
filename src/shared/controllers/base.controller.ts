@@ -1,7 +1,7 @@
+/* eslint-disable no-useless-return */
 import { Router, Request, Response, NextFunction } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import { Logger } from 'pino';
-import asyncHandler from 'express-async-handler';
 import { IController } from '../interfaces/controller.interface.js';
 import { IRoute } from '../interfaces/route.interface.js';
 
@@ -16,15 +16,22 @@ export abstract class BaseController implements IController {
   protected abstract initializeRoutes(): void;
 
   protected addRoute(route: IRoute): void {
-    const middlewares = route.middlewares
-      ? route.middlewares.map((mw) => (req: Request, res: Response, next: NextFunction) =>
-        mw.execute(req, res, next)
-      )
-      : [];
+    const middlewares = route.middlewares || [];
 
-    const handler = asyncHandler(route.handler.bind(this));
+    const wrappedMiddlewares = middlewares.map((mw) => (req: Request, res: Response, next: NextFunction): void => {
+      Promise.resolve(mw.execute(req, res, next)).catch(next);
+    });
 
-    this.router[route.method](route.path, ...middlewares, handler);
+    const handler = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+      try {
+        await route.handler.call(this, req, res, next);
+      } catch (error) {
+        next(error);
+        return;
+      }
+    };
+
+    this.router[route.method](route.path, ...wrappedMiddlewares, handler);
   }
 
   protected ok<T>(res: Response, data?: T): void {

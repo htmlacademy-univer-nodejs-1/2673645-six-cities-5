@@ -6,17 +6,29 @@ import { OfferRepository } from '../db/repositories/offer.repository.js';
 import { CreateOfferDto } from '../dto/offer/create-offer.dto.js';
 import { UpdateOfferDto } from '../dto/offer/update-offer.dto.js';
 import { IOffer } from '../db/models/offer.schema.js';
+import { IEntityService } from '../interfaces/entity-service.interface.js';
 
 @injectable()
-export class OfferService {
+export class OfferService implements IEntityService {
   constructor(
     @inject(TYPES.Logger) private logger: Logger,
     @inject(TYPES.OfferRepository) private offerRepository: OfferRepository
   ) {}
 
-  async findAll(limit = 60): Promise<IOffer[]> {
+  async findById(id: string): Promise<IOffer | null> {
     try {
-      return await this.offerRepository.findAll(limit);
+      return await this.offerRepository.findByIdWithAuthor(id);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Error finding offer: ${msg}`);
+      throw error;
+    }
+  }
+
+  async findAll(limit = 60, userId?: string): Promise<IOffer[]> {
+    try {
+      const offers = await this.offerRepository.findAll(limit);
+      return this.addFavoriteFlags(offers, userId);
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       this.logger.error(`Error finding all offers: ${msg}`);
@@ -66,19 +78,10 @@ export class OfferService {
     }
   }
 
-  async findById(id: string): Promise<IOffer | null> {
+  async findByCity(city: string, limit?: number, userId?: string): Promise<IOffer[]> {
     try {
-      return await this.offerRepository.findByIdWithAuthor(id);
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
-      this.logger.error(`Error finding offer: ${msg}`);
-      throw error;
-    }
-  }
-
-  async findByCity(city: string, limit?: number): Promise<IOffer[]> {
-    try {
-      return await this.offerRepository.findByCity(city, limit);
+      const offers = await this.offerRepository.findByCity(city, limit);
+      return this.addFavoriteFlags(offers, userId);
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       this.logger.error(`Error finding offers by city: ${msg}`);
@@ -86,9 +89,10 @@ export class OfferService {
     }
   }
 
-  async findPremium(city: string): Promise<IOffer[]> {
+  async findPremium(city: string, userId?: string): Promise<IOffer[]> {
     try {
-      return await this.offerRepository.findPremiumByCity(city);
+      const offers = await this.offerRepository.findPremiumByCity(city);
+      return this.addFavoriteFlags(offers, userId);
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       this.logger.error(`Error finding premium offers: ${msg}`);
@@ -134,5 +138,12 @@ export class OfferService {
       this.logger.error(`Error deleting offer: ${msg}`);
       throw error;
     }
+  }
+
+  private addFavoriteFlags(offers: IOffer[], userId?: string): IOffer[] {
+    return offers.map((offer) => ({
+      ...offer,
+      isFavorite: userId ? offer.favorites.includes(new mongoose.Types.ObjectId(userId)) : false
+    }));
   }
 }

@@ -1,6 +1,5 @@
 @baseUrl = http://localhost:3000/api
-@userId = 507f191e810c19729de860ea
-@offerId = 507f1f77bcf86cd799439011
+@token = your-jwt-token-here
 
 POST {{baseUrl}}/users/register
 Content-Type: application/json
@@ -12,18 +11,79 @@ Content-Type: application/json
   "type": "обычный"
 }
 
-POST {{baseUrl}}/users/507f191e810c19729de860ea/avatar
-Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+POST {{baseUrl}}/users/login
+Content-Type: application/json
 
-------WebKitFormBoundary7MA4YWxkTrZu0gW
+{
+  "email": "john@example.com",
+  "password": "password123"
+}
+
+GET {{baseUrl}}/users/login
+Authorization: Bearer {{token}}
+
+POST {{baseUrl}}/users/logout
+Authorization: Bearer {{token}}
+
+GET {{baseUrl}}/offers
+
+GET {{baseUrl}}/offers?city=Paris&limit=20
+Authorization: Bearer {{token}}
+
+GET {{baseUrl}}/offers/premium?city=Paris
+Authorization: Bearer {{token}}
+
+GET {{baseUrl}}/offers/favorites
+Authorization: Bearer {{token}}
+
+POST {{baseUrl}}/offers
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "title": "Beautiful Apartment in Paris",
+  "description": "A beautiful apartment with great views and modern amenities.",
+  "city": "Paris",
+  "previewImage": "https://example.com/image.jpg",
+  "images": [
+    "https://example.com/image1.jpg",
+    "https://example.com/image2.jpg",
+    "https://example.com/image3.jpg",
+    "https://example.com/image4.jpg",
+    "https://example.com/image5.jpg",
+    "https://example.com/image6.jpg"
+  ],
+  "isPremium": true,
+  "type": "apartment",
+  "bedrooms": 3,
+  "maxAdults": 6,
+  "price": 150,
+  "amenities": ["WiFi", "Washing machine", "TV"],
+  "coordinates": {
+    "latitude": 48.8566,
+    "longitude": 2.3522
+  }
+}
+
+POST {{baseUrl}}/offers/507f1f77bcf86cd799439011/favorite
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{}
+
+DELETE {{baseUrl}}/offers/507f1f77bcf86cd799439011/favorite
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{}
+
+POST {{baseUrl}}/users/507f191e810c19729de860ea/avatar
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary
+
+------WebKitFormBoundary
 Content-Disposition: form-data; name="avatar"; filename="avatar.jpg"
 Content-Type: image/jpeg
 
-< /path/to/your/image.jpg
-------WebKitFormBoundary7MA4YWxkTrZu0gW--
-
-GET {{baseUrl}}/users/507f191e810c19729de860ea
-
-GET {{baseUrl}}/offers/507f1f77bcf86cd799439011
-
-GET {{baseUrl}}/comments/507f1f77bcf86cd799439011?limit=10
+< /path/to/avatar.jpg
+------WebKitFormBoundary--

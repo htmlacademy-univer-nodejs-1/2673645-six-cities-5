@@ -10,6 +10,9 @@ import { ValidateObjectIdMiddleware } from '../../shared/middlewares/validate-ob
 import { ValidateDtoMiddleware } from '../../shared/middlewares/validate-dto.middleware.js';
 import { CheckEntityExistsMiddleware } from '../../shared/middlewares/check-entity-exists.middleware.js';
 import { UploadFileMiddleware } from '../../shared/middlewares/upload-file.middleware.js';
+import { AuthenticateMiddleware } from '../../shared/middlewares/authenticate.middleware.js';
+import { JwtService } from '../../shared/libs/jwt.js';
+import { AuthenticatedRequest } from '../../shared/interfaces/authenticated-request.interface.js';
 import { ConflictError, UnauthorizedError, BadRequestError } from '../../shared/errors/http-error.js';
 
 @injectable()
@@ -17,7 +20,8 @@ export class UserController extends BaseController {
   constructor(
     @inject(TYPES.Logger) logger: Logger,
     @inject(TYPES.UserService) private userService: UserService,
-    @inject(TYPES.Config) private config: any
+    @inject(TYPES.Config) private config: any,
+    @inject(TYPES.JwtService) private jwtService: JwtService
   ) {
     super(logger);
   }
@@ -32,11 +36,13 @@ export class UserController extends BaseController {
       'User',
       this.logger
     );
+    const authenticate = new AuthenticateMiddleware(this.jwtService, this.logger);
     const uploadAvatar = new UploadFileMiddleware(
       {
-        uploadDir: this.config.get('uploadDir'),
-        maxFileSize: 5 * 1024 * 1024, // 5MB
-        allowedMimes: ['image/jpeg', 'image/png', 'image/webp']
+        uploadDir: process.env.UPLOAD_DIR || './uploads',
+        maxFileSize: 5 * 1024 * 1024,
+        allowedMimes: ['image/jpeg', 'image/png', 'image/webp'],
+        fieldName: 'avatar'
       },
       this.logger
     );
@@ -58,12 +64,14 @@ export class UserController extends BaseController {
     this.addRoute({
       path: '/users/login',
       method: 'get',
+      middlewares: [authenticate],
       handler: this.checkAuth
     });
 
     this.addRoute({
       path: '/users/logout',
       method: 'post',
+      middlewares: [authenticate],
       handler: this.logout
     });
 
@@ -77,7 +85,7 @@ export class UserController extends BaseController {
     this.addRoute({
       path: '/users/:id/avatar',
       method: 'post',
-      middlewares: [validateObjectId, checkUserExists, uploadAvatar],
+      middlewares: [authenticate, validateObjectId, checkUserExists, uploadAvatar],
       handler: this.uploadAvatar
     });
   }
@@ -95,10 +103,14 @@ export class UserController extends BaseController {
     }
 
     const user = await this.userService.create(dto);
+    const token = await this.userService.generateToken(user);
     const userResponse = this.sanitizeUserResponse(user);
 
     this.logger.info(`User registered successfully: ${user.email}`);
-    this.created(res, userResponse);
+    this.created(res, {
+      user: userResponse,
+      token
+    });
   }
 
   private async login(req: Request, res: Response): Promise<void> {
@@ -113,21 +125,28 @@ export class UserController extends BaseController {
       throw new UnauthorizedError('Invalid email or password');
     }
 
+    const isPasswordValid = await this.userService.verifyPassword(dto.password, user.password);
+
+    if (!isPasswordValid) {
+      this.logger.warn(`Login failed: Invalid password for user ${dto.email}`);
+      throw new UnauthorizedError('Invalid email or password');
+    }
+
+    const token = await this.userService.generateToken(user);
     const userResponse = this.sanitizeUserResponse(user);
 
     this.logger.info(`User logged in successfully: ${user.email}`);
 
     this.ok(res, {
-      user: userResponse,
-      message: 'Login successful'
+      token,
+      user: userResponse
     });
   }
 
-  private async checkAuth(req: Request, res: Response): Promise<void> {
-    const userId = req.query.userId as string;
+  private async checkAuth(req: AuthenticatedRequest, res: Response): Promise<void> {
+    const userId = req.user?.id;
 
     if (!userId) {
-      this.logger.warn('Auth check failed: No user ID provided');
       throw new UnauthorizedError('Not authenticated');
     }
 
@@ -146,8 +165,10 @@ export class UserController extends BaseController {
     this.ok(res, userResponse);
   }
 
-  private async logout(req: Request, res: Response): Promise<void> {
-    this.logger.info('User logged out successfully');
+  private async logout(req: AuthenticatedRequest, res: Response): Promise<void> {
+    const userId = req.user?.id;
+
+    this.logger.info(`User ${userId} logged out`);
     this.noContent(res);
   }
 
@@ -159,12 +180,18 @@ export class UserController extends BaseController {
     this.ok(res, userResponse);
   }
 
-  private async uploadAvatar(req: Request, res: Response): Promise<void> {
+  private async uploadAvatar(req: AuthenticatedRequest, res: Response): Promise<void> {
     const { id } = req.params;
+    const userId = req.user?.id;
     const file = req.file;
 
     if (!file) {
       throw new BadRequestError('Avatar file is required');
+    }
+
+    if (userId !== id) {
+      this.logger.warn(`User ${userId} tried to update avatar for user ${id}`);
+      throw new UnauthorizedError('You can only update your own avatar');
     }
 
     const avatarPath = `/uploads/${file.filename}`;
