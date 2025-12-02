@@ -1,4 +1,4 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import { Logger } from 'pino';
 import asyncHandler from 'express-async-handler';
@@ -16,10 +16,15 @@ export abstract class BaseController implements IController {
   protected abstract initializeRoutes(): void;
 
   protected addRoute(route: IRoute): void {
-    const middleware = route.middleware || [];
+    const middlewares = route.middlewares
+      ? route.middlewares.map((mw) => (req: Request, res: Response, next: NextFunction) =>
+        mw.execute(req, res, next)
+      )
+      : [];
+
     const handler = asyncHandler(route.handler.bind(this));
 
-    this.router[route.method](route.path, ...middleware, handler);
+    this.router[route.method](route.path, ...middlewares, handler);
   }
 
   protected ok<T>(res: Response, data?: T): void {
@@ -73,6 +78,13 @@ export abstract class BaseController implements IController {
   protected conflict(res: Response, message: string): void {
     res.status(StatusCodes.CONFLICT).json({
       error: 'Conflict',
+      message
+    });
+  }
+
+  protected internalServerError(res: Response, message = 'Internal Server Error'): void {
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      error: 'Internal Server Error',
       message
     });
   }

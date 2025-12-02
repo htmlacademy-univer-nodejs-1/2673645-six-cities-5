@@ -9,6 +9,7 @@ import { UserRepository } from '../db/repositories/user.repository.js';
 import { OfferRepository } from '../db/repositories/offer.repository.js';
 import { CommentRepository } from '../db/repositories/comment.repository.js';
 import { CommentService } from '../services/comment.service.js';
+import { CommentController } from '../../app/controllers/comment.controller.js';
 import { OfferService } from '../services/offer.service.js';
 import { OfferController } from '../../app/controllers/offer.controller.js';
 import { UserController } from '../../app/controllers/user.controller.js';
@@ -26,7 +27,8 @@ export const TYPES = {
   OfferService: Symbol.for('OfferService'),
   UserService: Symbol.for('UserService'),
   OfferController: Symbol.for('OfferController'),
-  UserController: Symbol.for('UserController')
+  UserController: Symbol.for('UserController'),
+  CommentController: Symbol.for('CommentController')
 };
 
 export function createContainer(): Container {
@@ -54,6 +56,8 @@ export function createContainer(): Container {
     .to(OfferController).inSingletonScope();
   container.bind<UserController>(TYPES.UserController)
     .to(UserController).inSingletonScope();
+  container.bind<CommentController>(TYPES.CommentController)
+    .to(CommentController).inSingletonScope();
 
   return container;
 }
