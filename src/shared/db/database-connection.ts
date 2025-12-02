@@ -1,56 +1,61 @@
+
+import { injectable } from 'inversify';
 import mongoose from 'mongoose';
 import { Logger } from 'pino';
+import { inject } from 'inversify';
+import { TYPES } from '../ioc/ioc-container.js';
 
 export interface DatabaseConnectionOptions {
-  host: string;
-  port: number;
-  name: string;
-  user?: string;
-  password?: string;
+  uri?: string;
 }
 
+@injectable()
 export class DatabaseConnection {
-  constructor(private logger: Logger) {}
+  private isConnected = false;
 
-  private buildConnectionUri(options: DatabaseConnectionOptions): string {
-    const auth = options.user && options.password
-      ? `${options.user}:${options.password}@`
-      : '';
-    return `mongodb://${auth}${options.host}:${options.port}/${options.name}`;
-  }
+  constructor(@inject(TYPES.Logger) private logger: Logger) {}
 
-  async connect(options: DatabaseConnectionOptions): Promise<void> {
+  async connect(uri: string): Promise<void> {
+    if (this.isConnected) {
+      this.logger.info('Already connected to database');
+      return;
+    }
+
     try {
-      const uri = this.buildConnectionUri(options);
-      this.logger.info('Attempting to connect to MongoDB...');
+      this.logger.info(`Connecting to database: ${uri.replace(/:[^:/@]+@/, ':****@')}`);
 
-      await mongoose.connect(uri, {
-        maxPoolSize: 10,
-        socketTimeoutMS: 45000,
-        serverSelectionTimeoutMS: 5000
-      });
+      await mongoose.connect(uri);
 
-      this.logger.info('Successfully connected to MongoDB');
-      this.logger.info(`Database: ${options.name} | Host: ${options.host}:${options.port}`);
+      this.isConnected = true;
+      this.logger.info('Database connection established');
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
-      this.logger.error(`Failed to connect to MongoDB: ${msg}`);
+      this.logger.error(`Database connection error: ${msg}`);
       throw error;
     }
   }
 
   async disconnect(): Promise<void> {
+    if (!this.isConnected) {
+      this.logger.info('Not connected to database');
+      return;
+    }
+
     try {
+      this.logger.info('Disconnecting from database...');
+
       await mongoose.disconnect();
-      this.logger.info('Disconnected from MongoDB');
+
+      this.isConnected = false;
+      this.logger.info('Database connection closed');
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
-      this.logger.error(`Disconnect error: ${msg}`);
+      this.logger.error(`Database disconnection error: ${msg}`);
       throw error;
     }
   }
 
-  isConnected(): boolean {
-    return mongoose.connection.readyState === 1;
+  public getConnectionStatus(): boolean {
+    return this.isConnected;
   }
 }

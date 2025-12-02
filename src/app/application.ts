@@ -1,8 +1,10 @@
-import 'reflect-metadata';
+// src/app/application.ts
+
 import { injectable, inject } from 'inversify';
-import { Logger } from 'pino';
 import express, { Express } from 'express';
-import { Server } from 'http';
+import { createServer, Server } from 'node:http';
+import cors from 'cors';
+import { Logger } from 'pino';
 import { TYPES } from '../shared/ioc/ioc-container.js';
 import { DatabaseConnection } from '../shared/db/database-connection.js';
 import { IController } from '../shared/interfaces/controller.interface.js';
@@ -10,80 +12,105 @@ import { ExceptionFilter } from '../shared/middlewares/exception-filter.middlewa
 
 @injectable()
 export class Application {
-  private app: Express;
   private server: Server | null = null;
+  private app: Express;
 
   constructor(
     @inject(TYPES.Logger) private logger: Logger,
-    @inject(TYPES.Config) private config: any,
+    @inject(TYPES.Config) private config: unknown,
     @inject(TYPES.DatabaseConnection) private db: DatabaseConnection
   ) {
     this.app = express();
   }
 
-  private initMiddleware(): void {
-    this.app.use(express.json());
-    const uploadDir = this.config.get('uploadDir');
-    this.app.use('/uploads', express.static(uploadDir));
-    this.logger.info(`✓ Static files directory: ${uploadDir}`);
+  public async init(): Promise<void> {
+    this.logger.info('Application initialization...');
 
-    this.app.use((req, res, next) => {
-      res.header('Access-Control-Allow-Origin', '*');
-      res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH');
-      res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-      next();
-    });
+    await this.initDb();
+    this.initMiddlewares();
+    this.initExceptionFilters();
+    await this.initServer();
 
-    this.logger.info('✓ Middleware initialized');
+    this.logger.info('Application initialized');
   }
 
-  private initControllers(controllers: IController[]): void {
-    controllers.forEach((controller) => {
-      this.app.use('/api', controller.router);
-      this.logger.info(`✓ Controller registered: ${controller.constructor.name}`);
-    });
+  private async initDb(): Promise<void> {
+    this.logger.info('Database initialization...');
+
+    const dbHost = process.env.DB_HOST || '127.0.0.1';
+    const dbPort = parseInt(process.env.DB_PORT || '27017', 10);
+    const dbName = process.env.DB_NAME || 'six-cities';
+    const dbUser = process.env.DB_USER || '';
+    const dbPassword = process.env.DB_PASSWORD || '';
+
+    let uri: string;
+    if (dbUser && dbPassword) {
+      uri = `mongodb://${dbUser}:${dbPassword}@${dbHost}:${dbPort}/${dbName}?authSource=admin`;
+    } else {
+      uri = `mongodb://${dbHost}:${dbPort}/${dbName}`;
+    }
+
+    this.logger.info(`Connecting to database: ${uri.replace(/:[^:/@]+@/, ':****@')}`);
+    await this.db.connect(uri);
+    this.logger.info('Database initialized');
+  }
+
+  private initMiddlewares(): void {
+    this.logger.info('Middlewares initialization...');
+
+    // CORS middleware
+    const corsOrigin = process.env.CORS_ORIGIN || 'http://localhost:3000';
+    this.app.use(cors({
+      origin: corsOrigin,
+      credentials: true,
+      methods: ['GET', 'POST', 'PATCH', 'DELETE', 'PUT', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization']
+    }));
+
+    // Body parser middleware
+    this.app.use(express.json());
+    this.app.use(express.urlencoded({ extended: true }));
+
+    // Static files
+    const uploadDir = process.env.UPLOAD_DIR || './uploads';
+    this.app.use('/uploads', express.static(uploadDir));
+
+    this.logger.info('Middlewares initialized');
   }
 
   private initExceptionFilters(): void {
+    this.logger.info('Exception filters initialization...');
     const exceptionFilter = new ExceptionFilter(this.logger);
     this.app.use(exceptionFilter.catch.bind(exceptionFilter));
-    this.logger.info('✓ Exception filter registered');
+    this.logger.info('Exception filters initialized');
   }
 
-  async init(controllers: IController[]): Promise<void> {
-    this.logger.info('Application initialization...');
-
-    await this.db.connect({
-      host: this.config.get('db.host'),
-      port: this.config.get('db.port'),
-      name: this.config.get('db.name'),
-      user: this.config.get('db.user'),
-      password: this.config.get('db.password')
+  public registerRoutes(controllers: IController[]): void {
+    this.logger.info('Routes registration...');
+    controllers.forEach((controller) => {
+      this.app.use('/api', controller.router);
     });
-
-    this.initMiddleware();
-
-    this.initControllers(controllers);
-
-    this.initExceptionFilters();
-
-    this.logger.info('✓ Application initialized');
+    this.logger.info(`Routes registered: ${controllers.length} controllers`);
   }
 
-  async start(): Promise<void> {
-    const port = this.config.get('port');
+  private async initServer(): Promise<void> {
+    const port = parseInt(process.env.PORT || '3000', 10);
 
-    this.server = this.app.listen(port, () => {
-      this.logger.info(`🚀 Server started on http://localhost:${port}`);
-      this.logger.info(`📁 Upload directory: ${this.config.get('uploadDir')}`);
+    this.server = createServer(this.app);
+
+    this.server.listen(port, () => {
+      this.logger.info(`Server started on http://localhost:${port}`);
     });
   }
 
-  async stop(): Promise<void> {
+  public async close(): Promise<void> {
+    this.logger.info('Application shutdown...');
+
     if (this.server) {
       this.server.close();
-      await this.db.disconnect();
-      this.logger.info('Application stopped');
     }
+
+    await this.db.disconnect();
+    this.logger.info('Application closed');
   }
 }
